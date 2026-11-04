@@ -38,7 +38,8 @@ Conditional routing:
 | **Node** | A named unit of work: `func(ctx context.Context, S) (S, error)`. Must respect `ctx` and treat the input state as immutable. |
 | **START / END** | Reserved sentinels. Execution begins at `START` and stops when a transition resolves to `END`. |
 | **Static edge** | `AddEdge(from, to)` — unconditional transition. |
-| **Conditional edge** | `AddConditional(from, router)` — a pure `func(S) string` inspects the state and names the next node. |
+| **Conditional edge** | `AddConditional(from, router)` — a pure `func(S) string` inspects the state and names the next node (resolved at runtime). |
+| **Conditional path map** | `AddConditionalEdges(from, router, paths)` — LangGraph-style: the router returns a key and `paths` maps keys to target nodes. Because the targets are declared, `Compile` validates them, so a mistyped target fails at build time instead of at runtime. |
 | **Parallel edge** | `AddParallel(from, branches, join, reducer)` — branches run **concurrently** on copies of the state, then a **reducer** `func(base S, results []S) S` merges them deterministically before continuing at `join`. If any branch errors, siblings are canceled via context. |
 | **Retry** | Per-node `WithRetry(attempts, backoff)` — retries only on non-cancellation errors, with exponential backoff. |
 | **Timeout** | Per-node `WithTimeout(d)` — bounds each attempt with a `context.WithTimeout` deadline. |

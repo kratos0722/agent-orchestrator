@@ -107,6 +107,15 @@ func (g *Graph[S]) validateTargets() error {
 			if !g.known(tr.target) {
 				return fmt.Errorf("orchestrator: edge %q -> unknown node %q", from, tr.target)
 			}
+		case kindConditional:
+			// Dynamic routers (AddConditional) leave branches nil and are
+			// validated at runtime. Path-map routers (AddConditionalEdges)
+			// declare their targets, so validate them here.
+			for _, t := range tr.branches {
+				if !g.known(t) {
+					return fmt.Errorf("orchestrator: conditional edge from %q has unknown target %q", from, t)
+				}
+			}
 		case kindParallel:
 			for _, b := range tr.branches {
 				if !g.known(b) || b == START || b == END {

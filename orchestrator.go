@@ -16,6 +16,7 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -169,6 +170,52 @@ func (g *Graph[S]) AddConditional(from string, router Router[S]) *Graph[S] {
 		return g
 	}
 	g.setTransition(from, transition[S]{kind: kindConditional, router: router})
+	return g
+}
+
+// AddConditionalEdges adds a conditional edge whose possible targets are known
+// up front, in the style of LangGraph's path maps. At runtime the router
+// returns a key, and paths resolves that key to the next node (which may be
+// END). Because the full set of targets is declared here, Compile validates
+// them like any other edge, so a typo'd or renamed target is caught when the
+// graph is built rather than when the branch is first taken.
+//
+// If the router returns a key that is not present in paths, the run fails at
+// that step with an unknown-node error, just like AddConditional.
+func (g *Graph[S]) AddConditionalEdges(from string, router Router[S], paths map[string]string) *Graph[S] {
+	switch {
+	case router == nil:
+		g.fail("AddConditionalEdges: node %q has a nil router", from)
+		return g
+	case len(paths) == 0:
+		g.fail("AddConditionalEdges: node %q has an empty path map", from)
+		return g
+	}
+	// Capture the declared targets (sorted, de-duplicated) so Compile can
+	// validate them deterministically.
+	seen := make(map[string]bool, len(paths))
+	targets := make([]string, 0, len(paths))
+	for key, target := range paths {
+		if target == "" {
+			g.fail("AddConditionalEdges: node %q maps key %q to an empty target", from, key)
+			return g
+		}
+		if !seen[target] {
+			seen[target] = true
+			targets = append(targets, target)
+		}
+	}
+	sort.Strings(targets)
+
+	// Resolve the user's key to a concrete node name at runtime. An unmapped
+	// key yields "" and surfaces as an unknown-node error in the engine.
+	resolved := make(map[string]string, len(paths))
+	for k, v := range paths {
+		resolved[k] = v
+	}
+	wrapped := func(state S) string { return resolved[router(state)] }
+
+	g.setTransition(from, transition[S]{kind: kindConditional, router: wrapped, branches: targets})
 	return g
 }
 
